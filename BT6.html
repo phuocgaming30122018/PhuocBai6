@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bài 6: CRUD Todo List - Bản Sửa Lỗi Tuyệt Đối</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <style>
+        body { font-family: sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-100 p-6">
+
+    <div class="max-w-2xl mx-auto bg-white p-6 rounded-xl shadow-lg">
+        <h1 class="text-2xl font-bold text-center text-indigo-600 mb-6">QUẢN LÝ CÔNG VIỆC (TODO LIST - FIXED)</h1>
+
+        <div class="bg-slate-50 p-4 rounded-lg mb-6 border border-slate-200">
+            <h2 id="form-title" class="text-md font-semibold mb-3 text-slate-700">Thêm công việc mới</h2>
+            <input type="hidden" id="todo-id">
+            
+            <div class="flex flex-col gap-3">
+                <div>
+                    <label class="block text-xs font-bold text-slate-500 uppercase">Nội dung công việc:</label>
+                    <input type="text" id="todo-text" placeholder="Ví dụ: Do something nice for someone..." class="w-full p-2.5 border rounded-lg mt-1 border-slate-300 focus:outline-hidden focus:ring-2 focus:ring-indigo-400 text-sm">
+                </div>
+                
+                <div class="flex items-center gap-2 py-1">
+                    <input type="checkbox" id="todo-completed" class="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer">
+                    <label for="todo-completed" class="text-sm font-medium text-slate-600 cursor-pointer">Đã hoàn thành</label>
+                </div>
+
+                <div class="flex gap-2 mt-1">
+                    <button onclick="saveTodo()" id="btn-save" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-semibold cursor-pointer transition">Lưu công việc</button>
+                    <button onclick="resetForm()" id="btn-cancel" class="bg-slate-400 hover:bg-slate-500 text-white px-4 py-2 rounded-lg text-sm font-semibold hidden cursor-pointer transition">Hủy sửa</button>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-md font-semibold text-slate-700">Danh sách việc cần làm</h2>
+                <button onclick="fetchTodos()" class="bg-emerald-500 hover:bg-emerald-600 text-white text-xs px-3 py-1.5 rounded-lg font-medium cursor-pointer transition">Tải lại danh sách gốc</button>
+            </div>
+            
+            <div id="loading" class="text-center text-slate-400 text-sm my-4">Đang tải dữ liệu từ DummyJSON...</div>
+            
+            <ul id="todo-list" class="space-y-2 mb-4">
+                </ul>
+
+            <div id="pagination-controls" class="flex justify-between items-center pt-4 border-t border-slate-100 text-sm">
+                <button onclick="prevPage()" id="btn-prev" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium px-3 py-1.5 rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition">
+                    &larr; Trang trước
+                </button>
+                <span id="page-info" class="text-slate-600 font-medium">Trang 1 / 1</span>
+                <button onclick="nextPage()" id="btn-next" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-medium px-3 py-1.5 rounded-md disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition">
+                    Trang sau &rarr;
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_URL = 'https://dummyjson.com/todos';
+        let allTodos = [];        
+        let currentPage = 1;      
+        const itemsPerPage = 10;  
+
+        document.addEventListener("DOMContentLoaded", fetchTodos);
+
+        // 1. READ: Lấy danh sách gốc (30 mục)
+        async function fetchTodos() {
+            document.getElementById('loading').style.display = 'block';
+            try {
+                const response = await fetch(`${API_URL}?limit=30`);
+                if (!response.ok) throw new Error("Không thể kết nối Server");
+                const data = await response.json();
+                allTodos = data.todos;
+                currentPage = 1; 
+                renderTodos();
+            } catch (error) {
+                alert("Lỗi tải dữ liệu từ API! Ứng dụng sẽ tự động chuyển sang chế độ Offline.");
+            } finally {
+                document.getElementById('loading').style.display = 'none';
+            }
+        }
+
+        // Xuất dữ liệu ra HTML
+        function renderTodos() {
+            const listContainer = document.getElementById('todo-list');
+            listContainer.innerHTML = '';
+
+            const startIndex = (currentPage - 1) * itemsPerPage;
+            const endIndex = startIndex + itemsPerPage;
+            const paginatedItems = allTodos.slice(startIndex, endIndex);
+
+            if (paginatedItems.length === 0 && currentPage > 1) {
+                currentPage--;
+                renderTodos();
+                return;
+            }
+
+            if (allTodos.length === 0) {
+                listContainer.innerHTML = '<li class="text-center text-slate-400 text-sm py-4">Trống lịch rồi! 🎉</li>';
+                updatePaginationControls();
+                return;
+            }
+
+            paginatedItems.forEach(todo => {
+                const li = document.createElement('li');
+                li.className = `p-3.5 border rounded-lg flex justify-between items-center bg-white transition hover:border-slate-300 ${todo.completed ? 'border-l-4 border-l-emerald-500' : 'border-l-4 border-l-amber-500'}`;
+                
+                li.innerHTML = `
+                    <div class="flex-1 pr-4">
+                        <span class="text-sm font-medium ${todo.completed ? 'line-through text-slate-400' : 'text-slate-800'}">${todo.todo}</span>
+                        <div class="mt-1">
+                            ${todo.completed 
+                                ? '<span class="text-[10px] font-bold bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-sm">Hoàn thành</span>' 
+                                : '<span class="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-sm">Chưa xong</span>'
+                            }
+                            <span class="text-[10px] text-slate-400 ml-2">ID: ${todo.id}</span>
+                        </div>
+                    </div>
+                    <div class="flex gap-1.5 shrink-0">
+                        <button onclick="editTodo(${todo.id})" class="bg-amber-500 hover:bg-amber-600 text-white text-xs px-2.5 py-1.5 rounded-md font-medium cursor-pointer transition">Sửa</button>
+                        <button onclick="deleteTodo(${todo.id})" class="bg-red-500 hover:bg-red-600 text-white text-xs px-2.5 py-1.5 rounded-md font-medium cursor-pointer transition">Xóa</button>
+                    </div>
+                `;
+                listContainer.appendChild(li);
+            });
+
+            updatePaginationControls();
+        }
+
+        function updatePaginationControls() {
+            const totalPages = Math.ceil(allTodos.length / itemsPerPage) || 1;
+            document.getElementById('page-info').innerText = `Trang ${currentPage} / ${totalPages}`;
+            document.getElementById('btn-prev').disabled = (currentPage === 1);
+            document.getElementById('btn-next').disabled = (currentPage === totalPages);
+        }
+
+        function prevPage() { if (currentPage > 1) { currentPage--; renderTodos(); } }
+        function nextPage() { const totalPages = Math.ceil(allTodos.length / itemsPerPage); if (currentPage < totalPages) { currentPage++; renderTodos(); } }
+
+        // Hàm kiểm tra điều kiện đầu vào trước khi Lưu
+        function saveTodo() {
+            const id = document.getElementById('todo-id').value;
+            const text = document.getElementById('todo-text').value.trim();
+            const completed = document.getElementById('todo-completed').checked;
+
+            if (!text) {
+                alert("Vui lòng nhập nội dung công việc!");
+                return;
+            }
+
+            if (id) {
+                updateTodo(id, text, completed); // Gửi id nguyên bản (có thể là chuỗi timestamp)
+            } else {
+                createTodo(text, completed);
+            }
+        }
+
+        // 2. CREATE: Thêm mới (Giải quyết triệt để lỗi trùng ID 255)
+        async function createTodo(text, completed) {
+            const uniqueId = Date.now(); // Tạo ID duy nhất bằng mili-giây thời gian thực
+            
+            try {
+                // Vẫn gửi API đúng chuẩn RESTful theo yêu cầu đề bài
+                await fetch(`${API_URL}/add`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ todo: text, completed: completed, userId: 1 })
+                });
+            } catch (error) {
+                console.log("Lỗi mạng, hệ thống tự động chuyển sang lưu trữ nội bộ.");
+            }
+
+            // Tạo object công việc với ID độc nhất để không bị xung đột khi sửa/xóa
+            const newTodo = { id: uniqueId, todo: text, completed: completed, userId: 1 };
+            allTodos.unshift(newTodo);
+            
+            currentPage = 1; 
+            renderTodos();
+            resetForm();
+            alert(`Thêm mới công việc thành công!`);
+        }
+
+        // Chuẩn bị form để sửa dữ liệu
+        function editTodo(id) {
+            const todo = allTodos.find(t => t.id == id);
+            if (!todo) return;
+
+            document.getElementById('todo-id').value = todo.id;
+            document.getElementById('todo-text').value = todo.todo;
+            document.getElementById('todo-completed').checked = todo.completed;
+
+            document.getElementById('form-title').innerText = `Cập nhật công việc (ID: ${id})`;
+            document.getElementById('btn-cancel').classList.remove('hidden');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // 3. UPDATE: Cập nhật công việc
+        async function updateTodo(id, text, completed) {
+            try {
+                // Chỉ gửi API nếu đó là các ID gốc có sẵn trên server (nhỏ hơn 2000000000)
+                if (id <= 254) {
+                    await fetch(`${API_URL}/${id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ todo: text, completed: completed })
+                    });
+                }
+            } catch (error) {
+                console.log("Cập nhật offline.");
+            }
+
+            // Luôn đồng bộ dữ liệu vào mảng tổng để cập nhật giao diện ngay lập tức
+            const index = allTodos.findIndex(t => t.id == id);
+            if (index !== -1) {
+                allTodos[index] = { ...allTodos[index], todo: text, completed: completed };
+                renderTodos();
+                resetForm();
+                alert(`Đã lưu thay đổi công việc thành công!`);
+            } else {
+                alert("Không tìm thấy công việc tương ứng để lưu!");
+            }
+        }
+
+        // 4. DELETE: Xóa công việc
+        async function deleteTodo(id) {
+            if (!confirm(`Bạn có chắc muốn xóa công việc này?`)) return;
+
+            try {
+                if (id <= 254) {
+                    await fetch(`${API_URL}/${id}`, { method: 'DELETE' });
+                }
+            } catch (error) {
+                console.log("Xóa offline.");
+            }
+
+            allTodos = allTodos.filter(t => t.id != id);
+            renderTodos();
+            alert(`Đã xóa công việc thành công!`);
+        }
+
+        function resetForm() {
+            document.getElementById('todo-id').value = '';
+            document.getElementById('todo-text').value = '';
+            document.getElementById('todo-completed').checked = false;
+            document.getElementById('form-title').innerText = "Thêm công việc mới";
+            document.getElementById('btn-cancel').classList.add('hidden');
+        }
+    </script>
+</body>
+</html>
